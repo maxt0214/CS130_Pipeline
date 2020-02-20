@@ -42,10 +42,9 @@ void render(driver_state& state, render_type type)
                 geoData[0] = new data_geometry;
                 geoData[1] = new data_geometry;
                 geoData[2] = new data_geometry;
-                for(int j = 0; j < 3; j++) {
+                for(int j = 0; j < 3; j++) {//set geo data for single triangle here
                     data_vertex currVertex;
-                    geoData[j]->data = state.vertex_data + j * state.floats_per_vertex;
-                    currVertex.data = geoData[j]->data;
+                    currVertex.data = state.vertex_data + (j+i) * state.floats_per_vertex;
                     state.vertex_shader(currVertex, *geoData[j], state.uniform_data);
                 }
                 rasterize_triangle(state, (const data_geometry **)geoData);
