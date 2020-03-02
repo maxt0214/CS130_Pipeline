@@ -100,4 +100,10 @@ void clip_triangle(driver_state& state, const data_geometry* in[3],int face=0);
 // fragments, calling the fragment shader, and z-buffering.
 void rasterize_triangle(driver_state& state, const data_geometry* in[3]);
 
+pixel PixelColor(driver_state& state,const data_geometry* in[3],data_fragment& frag,const float* triBary);
+
+void SetNewTri(driver_state& state,data_geometry* newVer,const data_geometry* in1,const data_geometry* in2,float bary);
+
+float BaryOfTwoPoints(vec4 A, vec4 B);
+
 #endif
