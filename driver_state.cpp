@@ -55,15 +55,71 @@ void render(driver_state& state, render_type type)
                 delete geoData[1];
                 delete geoData[2];
             }
-            
             break;
         case render_type::indexed:
+            for(int i = 0; i < state.num_triangles; i ++) {
+                data_geometry* geoData[3];
+                geoData[0] = new data_geometry;
+                geoData[1] = new data_geometry;
+                geoData[2] = new data_geometry;
+                for(int j = 0; j < 3; j++) {//set geo data for single triangle here
+                    data_vertex currVertex;
+                    currVertex.data = state.vertex_data + state.index_data[i*3+j] * state.floats_per_vertex;
+                    geoData[j]->data = currVertex.data;
+                    state.vertex_shader(currVertex, *geoData[j], state.uniform_data);
+                }
+                clip_triangle(state, (const data_geometry **)geoData,0);
+                
+                delete geoData[0];
+                delete geoData[1];
+                delete geoData[2];
+            }
             break;
         case render_type::fan:
+            data_vertex centerVertex;
+            centerVertex.data = state.vertex_data;
+            for(int i = 0; i < state.num_vertices-2; i++) {
+                data_geometry* geoData[3];
+                geoData[0] = new data_geometry;
+                geoData[1] = new data_geometry;
+                geoData[2] = new data_geometry;
+                
+                geoData[0]->data = centerVertex.data;
+                state.vertex_shader(centerVertex, *geoData[0], state.uniform_data);
+                for(int j = 1; j < 3; j++) {//set geo data for single triangle here
+                    data_vertex currVertex;
+                    currVertex.data = state.vertex_data + (j+i) * state.floats_per_vertex;
+                    geoData[j]->data = currVertex.data;
+                    state.vertex_shader(currVertex, *geoData[j], state.uniform_data);
+                }
+                clip_triangle(state, (const data_geometry **)geoData,0);
+                
+                delete geoData[0];
+                delete geoData[1];
+                delete geoData[2];
+            }
             break;
         case render_type::strip:
+            for(int i = 0; i < state.num_vertices-2; i++) {
+                data_geometry* geoData[3];
+                geoData[0] = new data_geometry;
+                geoData[1] = new data_geometry;
+                geoData[2] = new data_geometry;
+                for(int j = 0; j < 3; j++) {//set geo data for single triangle here
+                    data_vertex currVertex;
+                    currVertex.data = state.vertex_data + (j+i) * state.floats_per_vertex;
+                    geoData[j]->data = currVertex.data;
+                    state.vertex_shader(currVertex, *geoData[j], state.uniform_data);
+                }
+                clip_triangle(state, (const data_geometry **)geoData,0);
+                
+                delete geoData[0];
+                delete geoData[1];
+                delete geoData[2];
+            }
             break;
         case render_type::invalid:
+            std::cout << "Not Valid Shape!" << std::endl;
             break;
     }
 }
@@ -107,7 +163,7 @@ void clip_triangle(driver_state& state, const data_geometry* in[3],int face)
         clip_triangle(state,in,face+1);
         return;
     }
-    
+     
     float alpha, beta;//bary to get new vertex
     data_geometry* tri[3];
     
@@ -119,9 +175,9 @@ void clip_triangle(driver_state& state, const data_geometry* in[3],int face)
     tri[1]->data = new float[state.floats_per_vertex];
     tri[2]->data = new float[state.floats_per_vertex];
     //only one vertex inside
-    if(isInside[0] && !isInside[1] && !isInside[2]) {
-        alpha = BaryOfTwoPoints(in[0]->gl_Position, in[1]->gl_Position);//A B
-        beta = BaryOfTwoPoints(in[0]->gl_Position, in[2]->gl_Position);//A C
+    if(isInside[0] && !isInside[1] && !isInside[2]) {//in: A, out: B C
+        alpha = BaryOfTwoPoints(in[0]->gl_Position, in[1]->gl_Position, axis, bound);//A B
+        beta = BaryOfTwoPoints(in[0]->gl_Position, in[2]->gl_Position, axis, bound);//A C
         
         SetNewTri(state, tri[0], in[0], nullptr, 1); //A
         SetNewTri(state, tri[1], in[0], in[1], alpha);//new B
@@ -129,9 +185,9 @@ void clip_triangle(driver_state& state, const data_geometry* in[3],int face)
         
         clip_triangle(state,(const data_geometry **)tri,face+1);
     }
-    else if(!isInside[0] && isInside[1] && !isInside[2]) {
-        alpha = BaryOfTwoPoints(in[1]->gl_Position, in[0]->gl_Position);//B A
-        beta = BaryOfTwoPoints(in[1]->gl_Position, in[2]->gl_Position);//B C
+    else if(!isInside[0] && isInside[1] && !isInside[2]) {//B, A C
+        alpha = BaryOfTwoPoints(in[1]->gl_Position, in[0]->gl_Position, axis, bound);//B A
+        beta = BaryOfTwoPoints(in[1]->gl_Position, in[2]->gl_Position, axis, bound);//B C
         
         SetNewTri(state, tri[0], in[1], nullptr, 1);
         SetNewTri(state, tri[1], in[1], in[0], alpha);
@@ -139,9 +195,9 @@ void clip_triangle(driver_state& state, const data_geometry* in[3],int face)
         
         clip_triangle(state,(const data_geometry **)tri,face+1);
     }
-    else if(!isInside[0] && !isInside[1] && isInside[2]) {
-        alpha = BaryOfTwoPoints(in[2]->gl_Position, in[0]->gl_Position);//C A
-        beta = BaryOfTwoPoints(in[2]->gl_Position, in[1]->gl_Position);//C B
+    else if(!isInside[0] && !isInside[1] && isInside[2]) {//C, A B
+        alpha = BaryOfTwoPoints(in[2]->gl_Position, in[0]->gl_Position, axis, bound);//C A
+        beta = BaryOfTwoPoints(in[2]->gl_Position, in[1]->gl_Position, axis, bound);//C B
         
         SetNewTri(state, tri[0], in[2], nullptr, 1);
         SetNewTri(state, tri[1], in[2], in[0], alpha);
@@ -151,9 +207,9 @@ void clip_triangle(driver_state& state, const data_geometry* in[3],int face)
     }
     
     //two vertices inside
-    else if(isInside[0] && isInside[1] && !isInside[2]) {
-        alpha = BaryOfTwoPoints(in[0]->gl_Position, in[2]->gl_Position);//A C
-        beta = BaryOfTwoPoints(in[1]->gl_Position, in[2]->gl_Position);// B C
+    else if(isInside[0] && isInside[1] && !isInside[2]) {//A B, C
+        alpha = BaryOfTwoPoints(in[0]->gl_Position, in[2]->gl_Position, axis, bound);//A C
+        beta = BaryOfTwoPoints(in[1]->gl_Position, in[2]->gl_Position, axis, bound);// B C
         
         SetNewTri(state, tri[0], in[0], nullptr, 1);
         SetNewTri(state, tri[1], in[1], nullptr, 1);
@@ -165,13 +221,13 @@ void clip_triangle(driver_state& state, const data_geometry* in[3],int face)
         SetNewTri(state, tri[2], in[1], in[2], beta);
         clip_triangle(state,(const data_geometry **)tri,face+1);
     }
-    else if(isInside[0] && !isInside[1] && isInside[2]) {
-        alpha = BaryOfTwoPoints(in[0]->gl_Position, in[1]->gl_Position);//A B
-        beta = BaryOfTwoPoints(in[2]->gl_Position, in[1]->gl_Position);// C B
+    else if(isInside[0] && !isInside[1] && isInside[2]) {//A C, B
+        alpha = BaryOfTwoPoints(in[0]->gl_Position, in[1]->gl_Position, axis, bound);//A B
+        beta = BaryOfTwoPoints(in[2]->gl_Position, in[1]->gl_Position, axis, bound);// C B
         
-        SetNewTri(state, tri[0], in[0], nullptr, 1);
-        SetNewTri(state, tri[1], in[2], nullptr, 1);
-        SetNewTri(state, tri[2], in[0], in[1], alpha);
+        SetNewTri(state, tri[0], in[0], nullptr, 1);//A' <- A
+        SetNewTri(state, tri[1], in[2], nullptr, 1);//B' <- C
+        SetNewTri(state, tri[2], in[0], in[1], alpha);//C <- A,B
         clip_triangle(state,(const data_geometry **)tri,face+1);
         
         SetNewTri(state, tri[0], in[2], nullptr, 1);
@@ -179,9 +235,9 @@ void clip_triangle(driver_state& state, const data_geometry* in[3],int face)
         SetNewTri(state, tri[2], in[2], in[1], beta);
         clip_triangle(state,(const data_geometry **)tri,face+1);
     }
-    else {
-        alpha = BaryOfTwoPoints(in[1]->gl_Position, in[0]->gl_Position);//B A
-        beta = BaryOfTwoPoints(in[2]->gl_Position, in[0]->gl_Position);// C A
+    else {//B C, A
+        alpha = BaryOfTwoPoints(in[1]->gl_Position, in[0]->gl_Position, axis, bound);//B A
+        beta = BaryOfTwoPoints(in[2]->gl_Position, in[0]->gl_Position, axis, bound);// C A
         
         SetNewTri(state, tri[0], in[1], nullptr, 1);
         SetNewTri(state, tri[1], in[2], nullptr, 1);
@@ -236,8 +292,12 @@ void rasterize_triangle(driver_state& state, const data_geometry* in[3])
     z[1] = in[1]->gl_Position[2]/in[1]->gl_Position[3]; //z value for A
     z[2] = in[2]->gl_Position[2]/in[2]->gl_Position[3]; //z value for A
     
-    for(unsigned i = 0; i < state.image_width; i++) {
-        for(unsigned j = 0; j < state.image_height; j++) {
+    vec2 min = componentwise_min(a,b), max = componentwise_max(a,b);
+    min = componentwise_min(min,c);
+    max = componentwise_max(max,c);
+    
+    for(unsigned i = (int)min[0]; i < (int)max[0]+1; i++) {
+        for(unsigned j = (int)min[1]; j < (int)max[1]+1; j++) {
             float pbc = (b[0]*c[1] - c[0]*b[1]) - (i*c[1] - c[0]*j) + (i*b[1] - b[0]*j);
             float apc = (i*c[1] - c[0]*j) - (a[0]*c[1] - c[0]*a[1]) + (a[0]*j - i*a[1]);
             float abp = (b[0]*j - i*b[1]) - (a[0]*j - i*a[1]) + (a[0]*b[1] - b[0]*a[1]);
@@ -260,6 +320,8 @@ void rasterize_triangle(driver_state& state, const data_geometry* in[3])
 
 pixel PixelColor(driver_state& state, const data_geometry* in[3], data_fragment& frag, const float* triBary) {
     data_output out;
+    float actualBary[3];
+    float k;
     
     for(int i = 0; i < state.floats_per_vertex; i++) {
         switch (state.interp_rules[i]) {
@@ -267,11 +329,20 @@ pixel PixelColor(driver_state& state, const data_geometry* in[3], data_fragment&
                 frag.data[i] = in[0]->data[i];
                 break;
             case interp_type::smooth:
+                k = 0;
+                for(int i = 0; i < 3; i++) {
+                    k += triBary[i] / in[i]->gl_Position[3];
+                }
+                for(int i = 0; i < 3; i++) {
+                    actualBary[i] = triBary[i] / (k * in[i]->gl_Position[3]);
+                }
+                
+                frag.data[i] = in[0]->data[i] * actualBary[0] + in[1]->data[i] * actualBary[1] + in[2]->data[i] * actualBary[2];
                 break;
             case interp_type::noperspective:
                 frag.data[i] = in[0]->data[i] * triBary[0] + in[1]->data[i] * triBary[1] + in[2]->data[i] * triBary[2];
                 break;
-            default:
+            case interp_type::invalid:
                 break;
         }
     }
@@ -291,11 +362,30 @@ void SetNewTri(driver_state& state, data_geometry* newVer,const data_geometry* i
     
     newVer->gl_Position = bary * in1->gl_Position + (1-bary) * in2->gl_Position;
     
+    float nonPersBary = bary * in1->gl_Position[3] / (bary * in1->gl_Position[3] + (1-bary)*in2->gl_Position[3]);
+    
     for(int i = 0; i < state.floats_per_vertex; i++) {
-        newVer->data[i] = bary * in1->data[i] + (1-bary) * in2->data[i];
+        switch (state.interp_rules[i]) {
+            case interp_type::flat:
+                newVer->data[i] = in1->data[i];
+                break;
+            case interp_type::smooth:
+                newVer->data[i] = bary * in1->data[i] + (1-bary) * in2->data[i];
+                break;
+            case interp_type::noperspective:
+                newVer->data[i] = nonPersBary * in1->data[i] + (1-nonPersBary) * in2->data[i];
+                break;
+            case interp_type::invalid:
+                break;
+        }
+        
     }
 }
 
-float BaryOfTwoPoints(vec4 A, vec4 B) {
-    return (B[3] - B[0]) / (A[0] - A[3] + B[3] - B[0]);
+float BaryOfTwoPoints(vec4 A, vec4 B,int axis,int bound) {
+    if(bound > 0) {//clip against axis = w
+        return (B[3] - B[axis]) / (A[axis] - A[3] + B[3] - B[axis]);
+    } else {//clip against axis = -w
+        return (-B[3] - B[axis]) / (A[axis] + A[3] - B[3] - B[axis]);
+    }
 }

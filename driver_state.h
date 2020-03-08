@@ -104,6 +104,6 @@ pixel PixelColor(driver_state& state,const data_geometry* in[3],data_fragment& f
 
 void SetNewTri(driver_state& state,data_geometry* newVer,const data_geometry* in1,const data_geometry* in2,float bary);
 
-float BaryOfTwoPoints(vec4 A, vec4 B);
+float BaryOfTwoPoints(vec4 A, vec4 B,int axis,int bound);
 
 #endif
